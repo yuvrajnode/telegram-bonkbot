@@ -112,3 +112,37 @@ export const statsForUser = (userId: number): TradeStats => {
     realizedPnlSol: pnl.realized,
   };
 };
+
+/**
+ * The out-amount is only known once the swap lands, so it is written back
+ * after confirmation rather than at insert time.
+ */
+export const finalizeAmounts = (
+  id: number,
+  patch: {
+    outAmount: string;
+    priceSol: number;
+    priceUsd?: number | null;
+    solAmount?: number;
+    tokenAmount?: number;
+  },
+): void => {
+  getDb()
+    .prepare(
+      `UPDATE trades
+          SET out_amount = ?,
+              price_sol = ?,
+              price_usd = ?,
+              sol_amount = COALESCE(?, sol_amount),
+              token_amount = COALESCE(?, token_amount)
+        WHERE id = ?`,
+    )
+    .run(
+      patch.outAmount,
+      patch.priceSol,
+      patch.priceUsd ?? null,
+      patch.solAmount ?? null,
+      patch.tokenAmount ?? null,
+      id,
+    );
+};
