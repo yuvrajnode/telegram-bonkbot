@@ -1,0 +1,49 @@
+{
+  "name": "telegram-bonkbot",
+  "version": "0.4.0",
+  "private": true,
+  "description": "A Telegram trading bot for Solana: non-custodial wallets, Jupiter routed swaps, limit orders and live PnL.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "dev:api": "tsx watch src/api/server.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "start": "node dist/main.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@solana/spl-token": "0.4.9",
+    "@solana/web3.js": "1.95.8",
+    "better-sqlite3": "11.5.0",
+    "bs58": "6.0.0",
+    "cors": "2.8.5",
+    "dotenv": "16.4.5",
+    "express": "4.21.1",
+    "pino": "9.5.0",
+    "telegraf": "4.16.3",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.11",
+    "@types/cors": "2.8.17",
+    "@types/express": "4.17.21",
+    "@types/node": "22.9.0",
+    "@typescript-eslint/eslint-plugin": "8.14.0",
+    "@typescript-eslint/parser": "8.14.0",
+    "eslint": "8.57.1",
+    "pino-pretty": "13.0.0",
+    "prettier": "3.3.3",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3",
+    "vitest": "2.1.5"
+  }
+}
