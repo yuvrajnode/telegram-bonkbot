@@ -22,7 +22,10 @@ export const getConnection = (): Connection => {
   return connection;
 };
 
-export const isValidMint = (value: string): boolean => {
+export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+export const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+
+export const isValidAddress = (value: string): boolean => {
   try {
     // Off-curve keys are valid mints, so only the decode itself matters here.
     new PublicKey(value);
@@ -31,6 +34,9 @@ export const isValidMint = (value: string): boolean => {
     return false;
   }
 };
+
+/** Kept as a separate name because a mint is an address with extra meaning. */
+export const isValidMint = isValidAddress;
 
 export const getSolBalance = async (publicKey: string): Promise<number> => {
   const lamports = await getConnection().getBalance(new PublicKey(publicKey), 'confirmed');
@@ -44,13 +50,23 @@ export interface TokenBalance {
   rawAmount: string;
 }
 
-/** Every SPL token account the wallet owns, dust filtered out. */
+/**
+ * Every token account the wallet owns, dust filtered out. Both token programs
+ * are queried: Token-2022 mints are a growing share of new launches and an
+ * owner's accounts are split across the two programs, never merged.
+ */
 export const getTokenBalances = async (publicKey: string): Promise<TokenBalance[]> => {
-  const response = await getConnection().getParsedTokenAccountsByOwner(new PublicKey(publicKey), {
-    programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
-  });
+  const owner = new PublicKey(publicKey);
+  const connection = getConnection();
 
-  return response.value
+  const responses = await Promise.all(
+    [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
+      connection.getParsedTokenAccountsByOwner(owner, { programId }).catch(() => ({ value: [] })),
+    ),
+  );
+
+  return responses
+    .flatMap((response) => response.value)
     .map((account) => {
       const info = account.account.data.parsed.info as {
         mint: string;
@@ -93,13 +109,14 @@ export const sendAndConfirm = async (
 
   log.debug({ signature }, 'transaction submitted');
 
-  const latest = await conn.getLatestBlockhash(commitment);
+  // Confirm against the blockhash the transaction was actually built on. A
+  // freshly fetched one has a later expiry and would keep polling a
+  // transaction that can no longer land.
+  const blockhash = transaction.message.recentBlockhash;
+  const lastValidBlockHeight = (await conn.getBlockHeight(commitment)) + 150;
+
   const result = await conn.confirmTransaction(
-    {
-      signature,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
+    { signature, blockhash, lastValidBlockHeight },
     commitment,
   );
 

@@ -5,7 +5,7 @@ import { SOL_MINT } from '../lib/constants';
 import { child } from '../lib/logger';
 import { UserFacingError } from '../lib/errors';
 import { shortenAddress } from '../lib/format';
-import { getConnection, isValidMint } from './solana';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getConnection, isValidMint } from './solana';
 import { fetchJson } from './http';
 import type { TokenInfo } from '../types';
 
@@ -61,7 +61,11 @@ export const getTokenInfo = async (mint: string): Promise<TokenInfo> => {
   }
 
   try {
-    const mintAccount = await getMint(getConnection(), new PublicKey(mint));
+    // Try the classic token program first, then Token-2022: a mint belongs to
+    // exactly one of them and the wrong program id reads as "account missing".
+    const mintAccount = await getMint(getConnection(), new PublicKey(mint), undefined, TOKEN_PROGRAM_ID).catch(
+      () => getMint(getConnection(), new PublicKey(mint), undefined, TOKEN_2022_PROGRAM_ID),
+    );
     return tokenRepo.save({
       mint,
       symbol: shortenAddress(mint),

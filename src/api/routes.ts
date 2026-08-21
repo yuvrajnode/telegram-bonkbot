@@ -4,10 +4,9 @@ import * as tradeRepo from '../db/repositories/trades';
 import * as userRepo from '../db/repositories/users';
 import * as walletService from '../services/wallets';
 import * as positionService from '../services/positions';
-import { getSolBalance } from '../services/solana';
+import { getSolBalance, isValidAddress, isValidMint } from '../services/solana';
 import { getSolUsdPrice, getPriceInSol } from '../services/prices';
 import { getTokenInfo } from '../services/tokens';
-import { isValidMint } from '../services/solana';
 
 const asNumber = (value: unknown, fallback: number): number => {
   const parsed = Number(value);
@@ -188,7 +187,7 @@ export const registerRoutes = (app: Express): void => {
 
   app.get('/api/wallets/:publicKey/balance', async (req: Request, res: Response) => {
     const publicKey = req.params.publicKey ?? '';
-    if (!isValidMint(publicKey)) {
+    if (!isValidAddress(publicKey)) {
       res.status(400).json({ error: 'invalid_address' });
       return;
     }
