@@ -11,15 +11,75 @@ import { TransactionFailedError } from '../lib/errors';
 
 const log = child('solana');
 
-let connection: Connection | null = null;
+/**
+ * Endpoints in priority order. A single RPC is the most common cause of a
+ * dead bot: they rate limit under load and go down without warning, and a
+ * swap that cannot read a balance is a swap that does not happen.
+ */
+const endpoints = [env.solana.rpcUrl, ...env.solana.rpcFallbacks];
+const connections = new Map<string, Connection>();
+
+let activeIndex = 0;
+let demotedAt = 0;
+
+/** How long a failed primary stays demoted before it is tried again. */
+const RECOVERY_MS = 60_000;
+
+const connectionFor = (url: string): Connection => {
+  const existing = connections.get(url);
+  if (existing) return existing;
+
+  const created = new Connection(url, {
+    commitment: 'confirmed',
+    // The websocket only belongs to the primary; a fallback that inherits it
+    // would subscribe against the wrong node.
+    ...(url === env.solana.rpcUrl && env.solana.wsUrl ? { wsEndpoint: env.solana.wsUrl } : {}),
+  });
+  connections.set(url, created);
+  return created;
+};
 
 export const getConnection = (): Connection => {
-  if (connection) return connection;
-  connection = new Connection(env.solana.rpcUrl, {
-    commitment: 'confirmed',
-    ...(env.solana.wsUrl ? { wsEndpoint: env.solana.wsUrl } : {}),
-  });
-  return connection;
+  if (activeIndex > 0 && Date.now() - demotedAt > RECOVERY_MS) {
+    log.info('retrying primary rpc');
+    activeIndex = 0;
+  }
+  return connectionFor(endpoints[activeIndex] ?? env.solana.rpcUrl);
+};
+
+const rotate = (): boolean => {
+  if (endpoints.length <= 1) return false;
+  activeIndex = (activeIndex + 1) % endpoints.length;
+  demotedAt = Date.now();
+  log.warn({ endpoint: endpoints[activeIndex] }, 'rotated to fallback rpc');
+  return true;
+};
+
+/**
+ * Runs an RPC call, and on a transport-level failure retries it once per
+ * remaining endpoint. Errors that are not the endpoint's fault - a rejected
+ * transaction, a malformed address - are rethrown immediately.
+ */
+export const withFailover = async <T>(fn: (connection: Connection) => Promise<T>): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < Math.max(endpoints.length, 1); attempt += 1) {
+    try {
+      return await fn(getConnection());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const transport =
+        /fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|429|502|503|504|Too Many Requests/i.test(
+          message,
+        );
+      if (!transport) throw error;
+
+      lastError = error;
+      if (!rotate()) break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 };
 
 export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
@@ -39,7 +99,9 @@ export const isValidAddress = (value: string): boolean => {
 export const isValidMint = isValidAddress;
 
 export const getSolBalance = async (publicKey: string): Promise<number> => {
-  const lamports = await getConnection().getBalance(new PublicKey(publicKey), 'confirmed');
+  const lamports = await withFailover((connection) =>
+    connection.getBalance(new PublicKey(publicKey), 'confirmed'),
+  );
   return lamports / LAMPORTS_PER_SOL;
 };
 
@@ -57,11 +119,12 @@ export interface TokenBalance {
  */
 export const getTokenBalances = async (publicKey: string): Promise<TokenBalance[]> => {
   const owner = new PublicKey(publicKey);
-  const connection = getConnection();
 
   const responses = await Promise.all(
     [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
-      connection.getParsedTokenAccountsByOwner(owner, { programId }).catch(() => ({ value: [] })),
+      withFailover((connection) =>
+        connection.getParsedTokenAccountsByOwner(owner, { programId }),
+      ).catch(() => ({ value: [] })),
     ),
   );
 

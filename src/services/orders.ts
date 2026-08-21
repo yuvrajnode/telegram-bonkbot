@@ -110,6 +110,7 @@ const executeOrder = async (order: Order, priceSol: number): Promise<void> => {
             amountSol: order.amount_sol ?? 0,
             slippageBps: settings.slippage_bps,
             priorityFeeLamports: settings.priority_fee_lamports,
+            mevProtection: Boolean(settings.mev_protection),
             source: 'limit_order',
           })
         : await trading.sell({
@@ -119,6 +120,7 @@ const executeOrder = async (order: Order, priceSol: number): Promise<void> => {
             percent: order.amount_pct ?? 100,
             slippageBps: settings.slippage_bps,
             priorityFeeLamports: settings.priority_fee_lamports,
+            mevProtection: Boolean(settings.mev_protection),
             source,
           });
 

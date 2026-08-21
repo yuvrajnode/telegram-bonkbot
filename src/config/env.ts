@@ -19,6 +19,9 @@ const schema = z.object({
 
   SOLANA_RPC_URL: z.string().url(),
   SOLANA_WS_URL: z.string().url().optional().or(z.literal('')),
+  SOLANA_RPC_FALLBACKS: z.string().optional(),
+  JITO_BLOCK_ENGINE_URL: z.string().url().default('https://mainnet.block-engine.jito.wtf/api/v1'),
+  JITO_TIP_LAMPORTS: z.coerce.number().int().min(0).default(150_000),
   JUPITER_API_URL: z.string().url().default('https://quote-api.jup.ag/v6'),
   PRICE_API_URL: z.string().url().default('https://api.jup.ag/price/v2'),
 
@@ -61,9 +64,15 @@ export const env = {
 
   solana: {
     rpcUrl: raw.SOLANA_RPC_URL,
+    rpcFallbacks: csv(raw.SOLANA_RPC_FALLBACKS),
     wsUrl: raw.SOLANA_WS_URL || undefined,
     jupiterApiUrl: raw.JUPITER_API_URL.replace(/\/$/, ''),
     priceApiUrl: raw.PRICE_API_URL.replace(/\/$/, ''),
+  },
+
+  jito: {
+    blockEngineUrl: raw.JITO_BLOCK_ENGINE_URL.replace(/\/$/, ''),
+    tipLamports: raw.JITO_TIP_LAMPORTS,
   },
 
   wallet: {

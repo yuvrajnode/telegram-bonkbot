@@ -72,6 +72,11 @@ export interface BuildSwapParams {
   priorityFeeLamports: number;
   /** Wrap/unwrap SOL automatically so users never see a wSOL account. */
   wrapAndUnwrapSol?: boolean;
+  /**
+   * When set, the transaction carries a Jito tip instead of a priority fee and
+   * is meant to be submitted as a bundle rather than to a public RPC.
+   */
+  jitoTipLamports?: number;
 }
 
 export const buildSwapTransaction = async (
@@ -82,7 +87,11 @@ export const buildSwapTransaction = async (
     userPublicKey: params.userPublicKey,
     wrapAndUnwrapSol: params.wrapAndUnwrapSol ?? true,
     dynamicComputeUnitLimit: true,
-    prioritizationFeeLamports: params.priorityFeeLamports,
+    // A tip and a priority fee are alternatives, not additions: the tip pays
+    // the block builder directly, so paying both just burns SOL twice.
+    prioritizationFeeLamports: params.jitoTipLamports
+      ? { jitoTipLamports: params.jitoTipLamports }
+      : params.priorityFeeLamports,
   };
 
   if (env.trading.platformFeeBps > 0 && env.trading.platformFeeWallet) {

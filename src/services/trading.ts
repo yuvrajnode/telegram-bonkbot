@@ -2,16 +2,18 @@ import * as tradeRepo from '../db/repositories/trades';
 import * as userRepo from '../db/repositories/users';
 import * as notificationRepo from '../db/repositories/notifications';
 import { SOL_MINT, SOL_RESERVE_LAMPORTS, BPS_DENOMINATOR } from '../lib/constants';
-import { InsufficientBalanceError, UserFacingError } from '../lib/errors';
+import { InsufficientBalanceError, TransactionFailedError, UserFacingError } from '../lib/errors';
 import { fromBaseUnits, lamportsToSol, solToLamports, toBaseUnits } from '../lib/format';
 import { child } from '../lib/logger';
 import { env } from '../config/env';
 import { buildSwapTransaction, getQuote, priceImpactPct, routeLabels } from './jupiter';
+import { sendBundle, tipLamports, waitForBundle } from './jito';
 import { getSolBalance, getTokenBalance, sendAndConfirm } from './solana';
 import { getTokenInfo } from './tokens';
 import { getSolUsdPrice } from './prices';
 import { getKeypair } from './wallets';
 import * as positions from './positions';
+import bs58 from 'bs58';
 import type { TokenInfo, Trade, TradeSource, Wallet } from '../types';
 
 const log = child('trading');
@@ -37,6 +39,7 @@ export interface BuyParams {
   amountSol: number;
   slippageBps: number;
   priorityFeeLamports: number;
+  mevProtection?: boolean;
   source?: TradeSource;
 }
 
@@ -48,6 +51,7 @@ export interface SellParams {
   percent: number;
   slippageBps: number;
   priorityFeeLamports: number;
+  mevProtection?: boolean;
   source?: TradeSource;
 }
 
@@ -138,10 +142,24 @@ export const previewSell = async (params: SellParams): Promise<TradePreview> => 
   };
 };
 
+/** Attempts before giving up, each one paying more than the last. */
+const MAX_ATTEMPTS = 3;
+
+/** A failure the network might not repeat: worth one more, pricier, attempt. */
+const isRetryable = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /blockhash|expired|timed out|not confirmed|Too Many Requests|429|503/i.test(message);
+};
+
 /**
  * Quotes go stale in seconds, so execution re-quotes immediately before
  * signing rather than reusing whatever the preview showed the user. The
  * preview is a display artifact; the fresh quote is the contract.
+ *
+ * Each attempt re-quotes and rebuilds, because the fee is baked into the
+ * transaction: you cannot bump the priority of something already signed. The
+ * fee doubles per attempt, which is what actually gets a swap through a
+ * congested minute.
  */
 const executeSwap = async (args: {
   userId: number;
@@ -151,24 +169,59 @@ const executeSwap = async (args: {
   amount: bigint;
   slippageBps: number;
   priorityFeeLamports: number;
-}): Promise<{ signature: string; outAmount: bigint }> => {
-  const quote = await getQuote({
-    inputMint: args.inputMint,
-    outputMint: args.outputMint,
-    amount: args.amount,
-    slippageBps: args.slippageBps,
-  });
+  mevProtection?: boolean;
+}): Promise<{ signature: string; outAmount: bigint; attempts: number; viaBundle: boolean }> => {
+  let lastError: unknown;
 
-  const transaction = await buildSwapTransaction({
-    quote,
-    userPublicKey: args.wallet.public_key,
-    priorityFeeLamports: args.priorityFeeLamports,
-  });
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const escalation = 2 ** attempt;
 
-  transaction.sign([getKeypair(args.wallet)]);
-  const signature = await sendAndConfirm(transaction);
+    const quote = await getQuote({
+      inputMint: args.inputMint,
+      outputMint: args.outputMint,
+      amount: args.amount,
+      slippageBps: args.slippageBps,
+    });
 
-  return { signature, outAmount: BigInt(quote.outAmount) };
+    const transaction = await buildSwapTransaction({
+      quote,
+      userPublicKey: args.wallet.public_key,
+      priorityFeeLamports: args.priorityFeeLamports * escalation,
+      ...(args.mevProtection ? { jitoTipLamports: tipLamports() * escalation } : {}),
+    });
+
+    transaction.sign([getKeypair(args.wallet)]);
+
+    try {
+      if (args.mevProtection) {
+        const bundleId = await sendBundle([transaction]);
+        const landed = await waitForBundle(bundleId);
+
+        if (!landed) {
+          throw new TransactionFailedError('Bundle was not picked up by a builder.');
+        }
+
+        const signature = bs58.encode(transaction.signatures[0]!);
+        return { signature, outAmount: BigInt(quote.outAmount), attempts: attempt + 1, viaBundle: true };
+      }
+
+      const signature = await sendAndConfirm(transaction);
+      return { signature, outAmount: BigInt(quote.outAmount), attempts: attempt + 1, viaBundle: false };
+    } catch (error) {
+      lastError = error;
+
+      // A swap that reverted on-chain will revert again at any fee.
+      if (error instanceof TransactionFailedError && error.signature) throw error;
+      if (!isRetryable(error) && !args.mevProtection) throw error;
+
+      log.warn(
+        { attempt: attempt + 1, escalation, err: error },
+        'swap attempt failed, escalating fee',
+      );
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 };
 
 const creditReferrer = (userId: number, tradeId: number, solAmount: number): void => {
@@ -213,6 +266,7 @@ export const buy = async (params: BuyParams): Promise<TradeResult> => {
       amount: lamports,
       slippageBps: params.slippageBps,
       priorityFeeLamports: params.priorityFeeLamports,
+      mevProtection: params.mevProtection ?? false,
     });
 
     const tokenAmount = fromBaseUnits(outAmount, token.decimals);
@@ -295,6 +349,7 @@ export const sell = async (params: SellParams): Promise<TradeResult> => {
       amount: sellRaw,
       slippageBps: params.slippageBps,
       priorityFeeLamports: params.priorityFeeLamports,
+      mevProtection: params.mevProtection ?? false,
     });
 
     const solReceived = lamportsToSol(outAmount);

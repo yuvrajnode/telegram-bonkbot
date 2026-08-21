@@ -67,6 +67,7 @@ export const executeBuy = async (
       amountSol,
       slippageBps: ctx.settings.slippage_bps,
       priorityFeeLamports: ctx.settings.priority_fee_lamports,
+      mevProtection: Boolean(ctx.settings.mev_protection),
     });
 
     await ctx.telegram.editMessageText(
@@ -100,6 +101,7 @@ export const executeSell = async (
       percent,
       slippageBps: ctx.settings.slippage_bps,
       priorityFeeLamports: ctx.settings.priority_fee_lamports,
+      mevProtection: Boolean(ctx.settings.mev_protection),
     });
 
     await ctx.telegram.editMessageText(
