@@ -1,7 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Pin ambient types to nothing. The dashboard sits inside a repo whose
+    // root node_modules carries @types/node and friends, and those resolve
+    // through parent directories - the browser build should not quietly
+    // typecheck against server types that a standalone install lacks.
+    "types": [],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
