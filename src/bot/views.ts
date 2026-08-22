@@ -8,6 +8,7 @@ import {
 import { explorerTx } from '../services/solana';
 import type { PortfolioSummary, PositionView } from '../services/positions';
 import type { TradePreview, TradeResult } from '../services/trading';
+import type { SafetyReport } from '../services/safety';
 import type { Order, TokenInfo, Trade, Wallet } from '../types';
 
 /** Telegram's HTML parse mode only forgives these three. */
@@ -46,12 +47,33 @@ export const homeScreen = (input: {
   ].join('\n');
 };
 
+const RISK_BADGE: Record<SafetyReport['level'], string> = {
+  low: '🟢 Looks clean',
+  medium: '🟡 Some risk',
+  high: '🟠 High risk',
+  critical: '🔴 Do not buy',
+};
+
+/** Two worst flags is enough; a wall of warnings gets skimmed and ignored. */
+export const riskBlock = (report: SafetyReport): string => {
+  const order: Record<SafetyReport['level'], number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const worst = [...report.flags].sort((a, b) => order[a.severity] - order[b.severity]).slice(0, 2);
+
+  const lines = [`<b>Safety</b>  ${RISK_BADGE[report.level]} <i>(${report.score}/100)</i>`];
+  for (const flag of worst) lines.push(`  • ${escape(flag.label)} — ${escape(flag.detail)}`);
+  if (report.flags.length === 0) {
+    lines.push('  • Sell route priced, no mint or freeze authority left open.');
+  }
+  return lines.join('\n');
+};
+
 export const tokenScreen = (input: {
   token: TokenInfo;
   priceSol: number;
   priceUsd: number;
   solBalance: number;
   position?: PositionView | undefined;
+  safety?: SafetyReport | undefined;
 }): string => {
   const lines = [
     `<b>${escape(input.token.symbol)}</b> · ${escape(input.token.name)}`,
@@ -72,6 +94,8 @@ export const tokenScreen = (input: {
       `${sign(view.unrealizedPnlSol)} ${view.unrealizedPnlSol.toFixed(4)} SOL (${formatPct(view.unrealizedPnlPct)})`,
     );
   }
+
+  if (input.safety) lines.push('', riskBlock(input.safety));
 
   lines.push('', '<i>Pick a size below, or send a custom amount.</i>');
   return lines.join('\n');

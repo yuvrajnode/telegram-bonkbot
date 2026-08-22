@@ -7,6 +7,7 @@ import * as notificationRepo from '../db/repositories/notifications';
 import { getSolBalance } from '../services/solana';
 import { getPriceInSol, getSolUsdPrice } from '../services/prices';
 import { getTokenInfo } from '../services/tokens';
+import * as safety from '../services/safety';
 import * as keyboards from './keyboards';
 import * as views from './views';
 import type { BotContext } from './context';
@@ -69,12 +70,13 @@ export const showHome = async (ctx: BotContext): Promise<void> => {
 };
 
 export const showToken = async (ctx: BotContext, mint: string): Promise<void> => {
-  const [token, priceSol, solUsd, solBalance, position] = await Promise.all([
+  const [token, priceSol, solUsd, solBalance, position, report] = await Promise.all([
     getTokenInfo(mint),
     getPriceInSol(mint).catch(() => 0),
     getSolUsdPrice().catch(() => 0),
     getSolBalance(ctx.wallet.public_key).catch(() => 0),
     positionService.findView(ctx.wallet.id, mint),
+    safety.analyze(mint).catch(() => undefined),
   ]);
 
   const presets = parseJsonArray(ctx.settings.buy_presets_sol, [0.1, 0.25, 0.5, 1]);
@@ -87,6 +89,7 @@ export const showToken = async (ctx: BotContext, mint: string): Promise<void> =>
       priceUsd: (priceSol ?? 0) * solUsd,
       solBalance,
       position,
+      safety: report,
     }),
     keyboards.buyAmounts(mint, presets),
   );

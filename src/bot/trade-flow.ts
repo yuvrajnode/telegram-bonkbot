@@ -1,4 +1,5 @@
 import * as trading from '../services/trading';
+import * as safety from '../services/safety';
 import { UserFacingError } from '../lib/errors';
 import * as keyboards from './keyboards';
 import * as views from './views';
@@ -14,7 +15,28 @@ const replyHtml = (ctx: BotContext, text: string, extra: object = {}) =>
  * With it off the swap goes straight out - which is the whole point of a
  * bot like this, so the setting defaults to on and is easy to flip.
  */
+/**
+ * A critical report means the token cannot be sold, or the deployer can freeze
+ * the account holding it. Buying is refused outright rather than warned about:
+ * a warning above a Confirm button is a warning people tap through.
+ *
+ * The gate never blocks a sell - getting out of something dangerous is
+ * exactly what a user in trouble needs to do.
+ */
+const assertTradable = async (mint: string): Promise<void> => {
+  const report = await safety.analyze(mint).catch(() => undefined);
+  if (!report || !safety.isBlocking(report)) return;
+
+  const reason = report.flags.find((flag) => flag.severity === 'critical');
+  throw new UserFacingError(
+    `${report.symbol} failed the safety check: ${reason?.label ?? 'unsellable'}.`,
+    reason?.detail ?? 'A sell could not be priced for this token.',
+  );
+};
+
 export const startBuy = async (ctx: BotContext, mint: string, amountSol: number): Promise<void> => {
+  await assertTradable(mint);
+
   if (!ctx.settings.confirm_before_trade) {
     await executeBuy(ctx, mint, amountSol);
     return;
@@ -57,6 +79,7 @@ export const executeBuy = async (
   mint: string,
   amountSol: number,
 ): Promise<void> => {
+  await assertTradable(mint);
   const notice = await ctx.reply('⏳ Routing your buy…');
 
   try {
