@@ -71,3 +71,14 @@ export interface OrderRow {
   expiresAt: string | null;
   createdAt: string;
 }
+
+export interface CopyTargetRow {
+  id: number;
+  address: string;
+  label: string | null;
+  sizeSol: number;
+  mirrorSells: boolean;
+  status: 'active' | 'paused';
+  copiedCount: number;
+  createdAt: string;
+}

@@ -1,4 +1,4 @@
-import type { Overview, OrderRow, Portfolio, TradeRow } from './types';
+import type { CopyTargetRow, Overview, OrderRow, Portfolio, TradeRow } from './types';
 
 /**
  * Sample desk used when the API is not reachable (a static deploy, or the
@@ -104,4 +104,27 @@ export const demoOrders: OrderRow[] = [
   { id: 84, kind: 'take_profit', symbol: 'WIF', mint: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', triggerPriceSol: 0.0102, amountSol: null, amountPct: 50, expiresAt: null, createdAt: minutesAgo(320) },
   { id: 83, kind: 'stop_loss', symbol: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', triggerPriceSol: 0.0064, amountSol: null, amountPct: 100, expiresAt: null, createdAt: minutesAgo(420) },
   { id: 82, kind: 'limit_buy', symbol: 'BONK', mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', triggerPriceSol: 0.00000015, amountSol: 2.5, amountPct: null, expiresAt: '2026-09-01 00:00:00', createdAt: minutesAgo(900) },
+];
+
+export const demoCopyTargets: CopyTargetRow[] = [
+  {
+    id: 3,
+    address: '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1',
+    label: null,
+    sizeSol: 0.25,
+    mirrorSells: true,
+    status: 'active',
+    copiedCount: 18,
+    createdAt: minutesAgo(4320),
+  },
+  {
+    id: 2,
+    address: 'GDfnEsia2WLAW5t8yx2X5j2mkfA74i5kwGdDuZHt7XmG',
+    label: null,
+    sizeSol: 0.1,
+    mirrorSells: false,
+    status: 'paused',
+    copiedCount: 6,
+    createdAt: minutesAgo(9000),
+  },
 ];

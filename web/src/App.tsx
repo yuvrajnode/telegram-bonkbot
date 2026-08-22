@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchOrders, fetchOverview, fetchPortfolio, fetchTrades } from './lib/api';
+import {
+  fetchCopyTargets,
+  fetchOrders,
+  fetchOverview,
+  fetchPortfolio,
+  fetchTrades,
+} from './lib/api';
 import { pct, usd } from './lib/format';
 import { Leaderboard } from './components/Leaderboard';
 import { Metric } from './components/Metric';
+import { CopyPanel } from './components/CopyPanel';
 import { OrdersPanel } from './components/OrdersPanel';
 import { PositionsTable } from './components/PositionsTable';
 import { Shell, type View } from './components/Shell';
@@ -10,7 +17,7 @@ import { Sparkline } from './components/Sparkline';
 import { TradesTable } from './components/TradesTable';
 import { WalletsPanel } from './components/WalletsPanel';
 import { Panel, SkeletonRows } from './components/primitives';
-import type { Overview, OrderRow, Portfolio, TradeRow } from './lib/types';
+import type { CopyTargetRow, Overview, OrderRow, Portfolio, TradeRow } from './lib/types';
 
 const REFRESH_MS = 20_000;
 
@@ -22,6 +29,7 @@ interface DeskData {
   portfolio: Portfolio;
   trades: TradeRow[];
   orders: OrderRow[];
+  copyTargets: CopyTargetRow[];
 }
 
 export default function App() {
@@ -31,15 +39,23 @@ export default function App() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
-    const [[overview, o1], [portfolio, o2], [trades, o3], [orders, o4]] = await Promise.all([
-      fetchOverview(),
-      fetchPortfolio(userRef),
-      fetchTrades(userRef),
-      fetchOrders(userRef),
-    ]);
+    const [[overview, o1], [portfolio, o2], [trades, o3], [orders, o4], [copies, o5]] =
+      await Promise.all([
+        fetchOverview(),
+        fetchPortfolio(userRef),
+        fetchTrades(userRef),
+        fetchOrders(userRef),
+        fetchCopyTargets(userRef),
+      ]);
 
-    setData({ overview, portfolio, trades: trades.trades, orders: orders.orders });
-    setLive(o1 && o2 && o3 && o4);
+    setData({
+      overview,
+      portfolio,
+      trades: trades.trades,
+      orders: orders.orders,
+      copyTargets: copies.targets,
+    });
+    setLive(o1 && o2 && o3 && o4 && o5);
     setUpdatedAt(new Date());
   }, []);
 
@@ -82,7 +98,7 @@ export default function App() {
     );
   }
 
-  const { overview, portfolio, trades, orders } = data;
+  const { overview, portfolio, trades, orders, copyTargets } = data;
   const equitySol =
     portfolio.totals.valueSol +
     portfolio.wallets.reduce((sum, wallet) => sum + wallet.solBalance, 0);
@@ -157,9 +173,14 @@ export default function App() {
           <Panel title="Recent fills" subtitle="Newest first, straight from the trade log">
             <TradesTable trades={trades} />
           </Panel>
-          <Panel title="Resting orders" subtitle="Swept every 10 seconds by the watcher">
-            <OrdersPanel orders={orders} />
-          </Panel>
+          <div className="space-y-4">
+            <Panel title="Resting orders" subtitle="Swept every 10 seconds by the watcher">
+              <OrdersPanel orders={orders} />
+            </Panel>
+            <Panel title="Copying" subtitle="Wallets mirrored at a fixed size per buy">
+              <CopyPanel targets={copyTargets} />
+            </Panel>
+          </div>
         </div>
       )}
 

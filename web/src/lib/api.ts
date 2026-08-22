@@ -1,5 +1,5 @@
-import { demoOrders, demoOverview, demoPortfolio, demoTrades } from './demo';
-import type { Overview, OrderRow, Portfolio, TradeRow } from './types';
+import { demoCopyTargets, demoOrders, demoOverview, demoPortfolio, demoTrades } from './demo';
+import type { CopyTargetRow, Overview, OrderRow, Portfolio, TradeRow } from './types';
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
@@ -43,4 +43,10 @@ export const fetchOrders = (userRef: number | string) =>
   withDemo(
     () => get<{ orders: OrderRow[] }>(`/api/users/${userRef}/orders`),
     { orders: demoOrders },
+  );
+
+export const fetchCopyTargets = (userRef: number | string) =>
+  withDemo(
+    () => get<{ targets: CopyTargetRow[] }>(`/api/users/${userRef}/copy-targets`),
+    { targets: demoCopyTargets },
   );

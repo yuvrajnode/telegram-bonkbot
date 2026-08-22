@@ -3,6 +3,8 @@ import * as orderRepo from '../db/repositories/orders';
 import * as tradeRepo from '../db/repositories/trades';
 import * as userRepo from '../db/repositories/users';
 import * as walletService from '../services/wallets';
+import * as copyRepo from '../db/repositories/copy';
+import { cachedReport } from '../services/safety';
 import * as positionService from '../services/positions';
 import { getSolBalance, isValidAddress, isValidMint } from '../services/solana';
 import { getSolUsdPrice, getPriceInSol } from '../services/prices';
@@ -161,6 +163,27 @@ export const registerRoutes = (app: Express): void => {
     });
   });
 
+  app.get('/api/users/:userRef/copy-targets', (req: Request, res: Response) => {
+    const user = resolveUser(req.params.userRef ?? '');
+    if (!user) {
+      res.status(404).json({ error: 'user_not_found' });
+      return;
+    }
+
+    res.json({
+      targets: copyRepo.listByUser(user.id).map((target) => ({
+        id: target.id,
+        address: target.target_address,
+        label: target.label,
+        sizeSol: target.size_sol,
+        mirrorSells: Boolean(target.mirror_sells),
+        status: target.status,
+        copiedCount: target.copied_count,
+        createdAt: target.created_at,
+      })),
+    });
+  });
+
   app.get('/api/tokens/:mint', async (req: Request, res: Response) => {
     const mint = req.params.mint ?? '';
     if (!isValidMint(mint)) {
@@ -182,6 +205,9 @@ export const registerRoutes = (app: Express): void => {
       logoUri: token.logo_uri,
       priceSol: priceSol ?? 0,
       priceUsd: (priceSol ?? 0) * solUsd,
+      // Only the cached verdict: a fresh analysis costs two quotes and this
+      // endpoint should not be a way to make the bot pay for someone's crawl.
+      safety: cachedReport(mint) ?? null,
     });
   });
 
