@@ -18,6 +18,18 @@ This bot holds private keys. That is the whole design, and it is the risk.
 - Exports self-destruct after 60 seconds. That is a convenience, not a
   guarantee: the recipient can screenshot it, and Telegram may have it cached.
 
+## Withdrawals
+
+Sending funds out is the only irreversible action here, so it is guarded
+rather than trusted:
+
+- The destination must be on-curve. A program-derived address or a token
+  account will accept a transfer and strand it forever, and this is the single
+  most common way people lose funds by hand.
+- Sweeping keeps roughly 0.007 SOL back. A wallet with tokens and no gas
+  cannot sell them.
+- Confirmation is mandatory even for users who turned off trade confirmations.
+
 ## Deployment
 
 - Run the database on a volume you back up. Losing it loses every wallet.
@@ -36,9 +48,19 @@ This bot holds private keys. That is the whole design, and it is the risk.
   there so that migration does not have to guess formats.
 - **No withdrawal limits or 2FA.** Anyone with access to a user's Telegram
   account can trade and export from their wallet.
-- **MEV protection is a toggle without an implementation.** The setting is
-  stored but no Jito bundle path is wired up yet. It does nothing today, and
-  the UI should not imply otherwise.
+- **MEV protection is best effort.** With it on, swaps go to a Jito block
+  engine as a bundle instead of the public mempool, which removes the sandwich
+  window. It is not a guarantee: if no builder picks the bundle up, the bot
+  escalates the tip and retries, and a user who never gets filled is a user
+  who paid tips for nothing.
+- **The safety check is a filter, not a verdict.** It catches unsellable
+  tokens, live freeze and mint authorities, and concentrated supply. It does
+  not catch a team that rugs by pulling liquidity later, a token that passes
+  every check and still goes to zero, or a fresh mint with no pool yet. Passing
+  it means "not obviously a trap", nothing more.
+- **Copy trading inherits the target's judgement.** The bot mirrors what a
+  wallet does; it has no idea whether that wallet knows what it is doing, and
+  a target that is itself being farmed will drag followers along.
 - **Referral accounting is off-chain bookkeeping.** Earnings are recorded in a
   table; nothing pays them out automatically.
 
