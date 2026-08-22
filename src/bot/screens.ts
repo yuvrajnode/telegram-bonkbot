@@ -1,4 +1,5 @@
 import * as orderService from '../services/orders';
+import * as copyService from '../services/copytrade';
 import * as positionService from '../services/positions';
 import * as walletService from '../services/wallets';
 import * as tradeRepo from '../db/repositories/trades';
@@ -164,6 +165,11 @@ export const showSettings = async (ctx: BotContext): Promise<void> => {
 export const showHistory = async (ctx: BotContext): Promise<void> => {
   const trades = tradeRepo.listByUser(ctx.user.id, 15);
   await render(ctx, views.historyScreen(trades), keyboards.backHome());
+};
+
+export const showCopy = async (ctx: BotContext): Promise<void> => {
+  const targets = copyService.list(ctx.user.id);
+  await render(ctx, views.copyScreen(targets), keyboards.copyList(targets));
 };
 
 export const showReferral = async (ctx: BotContext): Promise<void> => {

@@ -12,7 +12,8 @@ export const home = (): Keyboard =>
     [button('⚡ Buy', 'nav:buy'), button('💵 Sell', 'nav:positions')],
     [button('📊 Positions', 'nav:positions'), button('🎯 Orders', 'nav:orders')],
     [button('👛 Wallet', 'nav:wallet'), button('⚙️ Settings', 'nav:settings')],
-    [button('🤝 Invite friends', 'nav:referral'), button('↻ Refresh', 'nav:home')],
+    [button('👥 Copy trade', 'nav:copy'), button('🤝 Invite friends', 'nav:referral')],
+    [button('↻ Refresh', 'nav:home')],
   ]);
 
 export const buyAmounts = (mint: string, presets: number[]): Keyboard => {
@@ -105,6 +106,15 @@ export const confirmWithdraw = (id: string): Keyboard =>
   Markup.inlineKeyboard([
     [button('✅ Send it', `withdraw_go:${id}`), button('✖️ Cancel', 'nav:wallet')],
   ]);
+
+export const copyList = (targets: Array<{ id: number; target_address: string }>): Keyboard => {
+  const rows = targets.map((target) => [
+    button(`⏸ Pause ${shortenAddress(target.target_address)}`, `copy_pause:${target.id}`),
+    button('✖️ Stop', `copy_stop:${target.id}`),
+  ]);
+  rows.push([button('↻ Refresh', 'nav:copy'), button('‹ Back', 'nav:home')]);
+  return Markup.inlineKeyboard(rows);
+};
 
 export const backHome = (): Keyboard =>
   Markup.inlineKeyboard([[button('‹ Back to menu', 'nav:home')]]);

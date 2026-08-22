@@ -6,6 +6,8 @@ import { UserFacingError } from '../lib/errors';
 import * as orderService from '../services/orders';
 import * as walletService from '../services/wallets';
 import * as transfers from '../services/transfers';
+import * as copyService from '../services/copytrade';
+import * as copyRepo from '../db/repositories/copy';
 import * as intents from './intents';
 import * as views from './views';
 import * as userRepo from '../db/repositories/users';
@@ -32,6 +34,7 @@ const HELP = [
   '/wallet — wallets, deposits, export',
   '/withdraw — send SOL or tokens out',
   '/history — recent fills',
+  '/copy — mirror another wallet\'s trades',
   '/settings — slippage, priority fee, confirmations',
   '/invite — your referral link',
   '',
@@ -81,6 +84,34 @@ export const createBot = (): Telegraf<BotContext> => {
         'Double check it. A Solana transfer is final — there is nobody to call if it goes to the wrong place.',
       ].join('\n'),
     );
+  });
+
+  bot.command('copy', async (ctx) => {
+    const [, address, size] = ctx.message.text.split(/\s+/);
+
+    if (!address) {
+      await screens.showCopy(ctx);
+      return;
+    }
+
+    const target = await copyService.follow({
+      userId: ctx.user.id,
+      walletId: ctx.wallet.id,
+      address,
+      sizeSol: Number(size ?? 0.1),
+    });
+
+    await ctx.reply(
+      [
+        `Now copying <code>${target.target_address}</code>.`,
+        '',
+        `Each buy they make is mirrored at <b>${target.size_sol} SOL</b>, and their sells are mirrored in the same proportion they exit.`,
+        '',
+        '<i>Only trades from here on. Their existing bags are not bought into.</i>',
+      ].join('\n'),
+      { parse_mode: 'HTML' },
+    );
+    await screens.showCopy(ctx);
   });
 
   bot.command('positions', screens.showPositions);
@@ -161,6 +192,30 @@ const registerActions = (bot: Telegraf<BotContext>): void => {
     await ack(ctx);
     await screens.showSettings(ctx);
   });
+  bot.action('nav:copy', async (ctx) => {
+    await ack(ctx);
+    await screens.showCopy(ctx);
+  });
+
+  bot.action(/^copy_stop:(\d+)$/, async (ctx) => {
+    copyService.unfollow(ctx.user.id, Number(ctx.match[1]));
+    await ack(ctx, 'Stopped following');
+    await screens.showCopy(ctx);
+  });
+
+  bot.action(/^copy_pause:(\d+)$/, async (ctx) => {
+    const target = copyRepo.findById(Number(ctx.match[1]));
+    if (!target || target.user_id !== ctx.user.id) {
+      await ack(ctx);
+      throw new UserFacingError('That follow is not yours.');
+    }
+
+    const next = target.status === 'active' ? 'paused' : 'active';
+    copyRepo.setStatus(target.id, next);
+    await ack(ctx, next === 'paused' ? 'Paused' : 'Resumed');
+    await screens.showCopy(ctx);
+  });
+
   bot.action('nav:referral', async (ctx) => {
     await ack(ctx);
     await screens.showReferral(ctx);

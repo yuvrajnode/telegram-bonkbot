@@ -37,6 +37,37 @@ const renderers: Record<string, (payload: never) => string> = {
       `<a href="${explorerTx(payload.signature)}">View transaction</a>`,
     ].join('\n'),
 
+  copy_filled: (payload: {
+    address: string;
+    side: 'buy' | 'sell';
+    symbol: string;
+    solAmount: number;
+    tokenAmount: number;
+    signature: string;
+  }) =>
+    [
+      `👥 <b>Copied a ${payload.side}</b>`,
+      '',
+      payload.side === 'buy'
+        ? `Bought ${formatAmount(payload.tokenAmount)} ${payload.symbol} for ${payload.solAmount.toFixed(4)} SOL`
+        : `Sold ${formatAmount(payload.tokenAmount)} ${payload.symbol} for ${payload.solAmount.toFixed(4)} SOL`,
+      `Following <code>${payload.address.slice(0, 6)}…${payload.address.slice(-4)}</code>`,
+      '',
+      `<a href="${explorerTx(payload.signature)}">View transaction</a>`,
+    ].join('\n'),
+
+  copy_skipped: (payload: { address: string; symbol: string; reason: string }) =>
+    [
+      `👥 <b>Skipped a copy</b>`,
+      '',
+      `${payload.symbol} failed the safety check: ${payload.reason}.`,
+      '',
+      '<i>The wallet you follow bought it anyway. You did not.</i>',
+    ].join('\n'),
+
+  copy_failed: (payload: { address: string; symbol: string; reason: string }) =>
+    [`👥 <b>Copy failed</b>`, '', `${payload.symbol}: ${payload.reason.slice(0, 200)}`].join('\n'),
+
   order_failed: (payload: OrderFailedPayload) =>
     [
       `⚠️ <b>Order #${payload.orderId} could not fill</b>`,

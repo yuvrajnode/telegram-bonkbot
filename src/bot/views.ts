@@ -240,6 +240,41 @@ export const historyScreen = (trades: Trade[]): string => {
   return ['<b>Recent trades</b>', rule, rows.join('\n')].join('\n');
 };
 
+export const copyScreen = (
+  targets: Array<{
+    id: number;
+    target_address: string;
+    label: string | null;
+    size_sol: number;
+    mirror_sells: number;
+    status: string;
+    copied_count: number;
+  }>,
+): string => {
+  if (targets.length === 0) {
+    return [
+      '<b>Copy trading</b>',
+      rule,
+      'Not following anyone yet.',
+      '',
+      'Send <code>/copy &lt;wallet&gt; &lt;size in SOL&gt;</code> to mirror a wallet.',
+      'Example: <code>/copy 7xKX…J4Zm 0.25</code>',
+      '',
+      '<i>Every buy they make is copied at your fixed size — never proportional, so a whale cannot drain you. Sells are mirrored in the same proportion they exit.</i>',
+    ].join('\n');
+  }
+
+  const rows = targets.map((target) =>
+    [
+      `${target.status === 'active' ? '🟢' : '⏸'} <code>${escape(shortenAddress(target.target_address, 6))}</code>`,
+      `    ${target.size_sol} SOL per buy · sells ${target.mirror_sells ? 'mirrored' : 'ignored'}`,
+      `    ${target.copied_count} trade${target.copied_count === 1 ? '' : 's'} copied`,
+    ].join('\n'),
+  );
+
+  return ['<b>Copy trading</b>', rule, rows.join('\n\n')].join('\n');
+};
+
 export const referralScreen = (input: {
   code: string;
   botUsername: string;

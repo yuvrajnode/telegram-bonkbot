@@ -23,6 +23,7 @@ const main = async (): Promise<void> => {
     { command: 'wallet', description: 'Wallets and deposits' },
     { command: 'withdraw', description: 'Send SOL or tokens out' },
     { command: 'history', description: 'Recent fills' },
+    { command: 'copy', description: 'Copy another wallet' },
     { command: 'settings', description: 'Slippage and fees' },
     { command: 'invite', description: 'Referral link' },
   ]);
