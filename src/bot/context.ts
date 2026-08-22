@@ -14,7 +14,9 @@ export type PendingPrompt =
   | { kind: 'set_slippage' }
   | { kind: 'set_priority_fee' }
   | { kind: 'limit_order_price'; mint: string; kind_of: 'limit_buy' | 'limit_sell' }
-  | { kind: 'limit_order_amount'; mint: string; kind_of: 'limit_buy' | 'limit_sell'; price: number };
+  | { kind: 'limit_order_amount'; mint: string; kind_of: 'limit_buy' | 'limit_sell'; price: number }
+  | { kind: 'withdraw_destination'; mint?: string | undefined }
+  | { kind: 'withdraw_amount'; destination: string; mint?: string | undefined };
 
 export interface BotContext extends Context {
   user: User;

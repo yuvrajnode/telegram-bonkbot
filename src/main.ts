@@ -21,6 +21,7 @@ const main = async (): Promise<void> => {
     { command: 'positions', description: 'Open positions and PnL' },
     { command: 'orders', description: 'Resting limit orders' },
     { command: 'wallet', description: 'Wallets and deposits' },
+    { command: 'withdraw', description: 'Send SOL or tokens out' },
     { command: 'history', description: 'Recent fills' },
     { command: 'settings', description: 'Slippage and fees' },
     { command: 'invite', description: 'Referral link' },

@@ -39,3 +39,30 @@ export const take = (id: string, userId: number): TradeIntent | undefined => {
 };
 
 export const size = (): number => intents.size;
+
+export interface WithdrawIntent {
+  userId: number;
+  walletId: number;
+  destination: string;
+  /** Absent for a SOL withdrawal. */
+  mint?: string;
+  amount: number;
+  percent?: number;
+  symbol: string;
+  createdAt: number;
+}
+
+const withdrawals = new Map<string, WithdrawIntent>();
+
+export const rememberWithdrawal = (intent: Omit<WithdrawIntent, 'createdAt'>): string => {
+  const id = crypto.randomBytes(6).toString('base64url');
+  withdrawals.set(id, { ...intent, createdAt: Date.now() });
+  return id;
+};
+
+export const takeWithdrawal = (id: string, userId: number): WithdrawIntent | undefined => {
+  const intent = withdrawals.get(id);
+  if (!intent || intent.userId !== userId) return undefined;
+  withdrawals.delete(id);
+  return Date.now() - intent.createdAt < TTL_MS ? intent : undefined;
+};

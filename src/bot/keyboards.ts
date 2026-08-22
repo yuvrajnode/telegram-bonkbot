@@ -68,7 +68,8 @@ export const walletMenu = (wallets: Wallet[]): Keyboard => {
     ),
   ]);
   rows.push([button('➕ Generate', 'wallet_new'), button('📥 Import', 'wallet_import')]);
-  rows.push([button('🔑 Export key', 'wallet_export'), button('↻ Refresh', 'nav:wallet')]);
+  rows.push([button('📤 Withdraw', 'wallet_withdraw'), button('🔑 Export key', 'wallet_export')]);
+  rows.push([button('↻ Refresh', 'nav:wallet')]);
   rows.push([button('‹ Back', 'nav:home')]);
   return Markup.inlineKeyboard(rows);
 };
@@ -99,6 +100,11 @@ export const orderList = (orders: Order[]): Keyboard => {
   rows.push([button('↻ Refresh', 'nav:orders'), button('‹ Back', 'nav:home')]);
   return Markup.inlineKeyboard(rows);
 };
+
+export const confirmWithdraw = (id: string): Keyboard =>
+  Markup.inlineKeyboard([
+    [button('✅ Send it', `withdraw_go:${id}`), button('✖️ Cancel', 'nav:wallet')],
+  ]);
 
 export const backHome = (): Keyboard =>
   Markup.inlineKeyboard([[button('‹ Back to menu', 'nav:home')]]);

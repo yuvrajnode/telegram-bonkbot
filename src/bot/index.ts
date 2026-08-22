@@ -5,6 +5,9 @@ import { child } from '../lib/logger';
 import { UserFacingError } from '../lib/errors';
 import * as orderService from '../services/orders';
 import * as walletService from '../services/wallets';
+import * as transfers from '../services/transfers';
+import * as intents from './intents';
+import * as views from './views';
 import * as userRepo from '../db/repositories/users';
 import { isValidMint } from '../services/solana';
 import * as keyboards from './keyboards';
@@ -27,6 +30,7 @@ const HELP = [
   '/positions — open positions and PnL',
   '/orders — resting limit orders',
   '/wallet — wallets, deposits, export',
+  '/withdraw — send SOL or tokens out',
   '/history — recent fills',
   '/settings — slippage, priority fee, confirmations',
   '/invite — your referral link',
@@ -62,6 +66,21 @@ export const createBot = (): Telegraf<BotContext> => {
     }
     ctx.setPending({ kind: 'buy_mint' });
     await ctx.reply('Send me the mint address you want to buy.');
+  });
+
+  bot.command('withdraw', async (ctx) => {
+    const [, maybeMint] = ctx.message.text.split(/\s+/);
+    ctx.setPending({
+      kind: 'withdraw_destination',
+      ...(maybeMint && isValidMint(maybeMint) ? { mint: maybeMint } : {}),
+    });
+    await ctx.reply(
+      [
+        'Send the destination address.',
+        '',
+        'Double check it. A Solana transfer is final — there is nobody to call if it goes to the wrong place.',
+      ].join('\n'),
+    );
   });
 
   bot.command('positions', screens.showPositions);
@@ -230,6 +249,49 @@ const registerActions = (bot: Telegraf<BotContext>): void => {
     const wallet = walletService.switchWallet(ctx.user.id, Number(ctx.match[1]));
     ctx.wallet = wallet;
     await ack(ctx, `Now trading from ${wallet.label}`);
+    await screens.showWallets(ctx);
+  });
+
+  bot.action('wallet_withdraw', async (ctx) => {
+    await ack(ctx);
+    ctx.setPending({ kind: 'withdraw_destination' });
+    await ctx.reply(
+      [
+        'Send the destination address.',
+        '',
+        'Double check it. A Solana transfer is final — there is nobody to call if it goes to the wrong place.',
+      ].join('\n'),
+    );
+  });
+
+  bot.action(/^withdraw_go:(.+)$/, async (ctx) => {
+    const intent = intents.takeWithdrawal(ctx.match[1]!, ctx.user.id);
+    if (!intent) {
+      await ack(ctx);
+      throw new UserFacingError('That withdrawal expired.', 'Start it again from /wallet.');
+    }
+
+    await ack(ctx, 'Sending…');
+
+    const result = intent.mint
+      ? await transfers.withdrawToken({
+          wallet: ctx.wallet,
+          destination: intent.destination,
+          mint: intent.mint,
+          percent: intent.percent ?? 100,
+          priorityFeeLamports: ctx.settings.priority_fee_lamports,
+        })
+      : await transfers.withdrawSol({
+          wallet: ctx.wallet,
+          destination: intent.destination,
+          amountSol: intent.amount,
+          priorityFeeLamports: ctx.settings.priority_fee_lamports,
+        });
+
+    await ctx.reply(views.withdrawDone(result), {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
     await screens.showWallets(ctx);
   });
 

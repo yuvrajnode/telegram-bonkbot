@@ -5,9 +5,14 @@ import { UserFacingError } from '../lib/errors';
 import { getPriceInSol } from '../services/prices';
 import { getTokenInfo } from '../services/tokens';
 import { isValidMint } from '../services/solana';
-import { formatPrice } from '../lib/format';
+import { formatAmount, formatPrice } from '../lib/format';
 import * as screens from './screens';
 import * as tradeFlow from './trade-flow';
+import * as transfers from '../services/transfers';
+import * as intents from './intents';
+import * as keyboards from './keyboards';
+import * as views from './views';
+import { getTokenBalance } from '../services/solana';
 import type { BotContext, PendingPrompt } from './context';
 
 const parseNumber = (raw: string): number => {
@@ -93,6 +98,63 @@ export const handlePending = async (
         prompt.kind_of === 'limit_buy'
           ? 'How much SOL should the order spend when it fills?'
           : 'What percentage of your holding should it sell?',
+      );
+      return;
+    }
+
+    case 'withdraw_destination': {
+      // Validated here so a typo is caught before an amount is even asked for.
+      if (!isValidMint(text)) {
+        throw new UserFacingError('That is not a valid Solana address.');
+      }
+
+      ctx.setPending({ kind: 'withdraw_amount', destination: text, mint: prompt.mint });
+
+      const available = prompt.mint
+        ? (await getTokenBalance(ctx.wallet.public_key, prompt.mint))?.amount ?? 0
+        : await transfers.sweepableSol(ctx.wallet);
+      const symbol = prompt.mint ? (await getTokenInfo(prompt.mint)).symbol : 'SOL';
+
+      await ctx.reply(
+        `How much ${symbol}? You can send ${formatAmount(available, 6)}, or reply "all".`,
+      );
+      return;
+    }
+
+    case 'withdraw_amount': {
+      const isToken = Boolean(prompt.mint);
+
+      const available = isToken
+        ? (await getTokenBalance(ctx.wallet.public_key, prompt.mint!))?.amount ?? 0
+        : await transfers.sweepableSol(ctx.wallet);
+
+      const amount = transfers.parseAmount(text, available);
+      if (amount > available) {
+        throw new UserFacingError(
+          `That is more than the wallet can send. Available: ${formatAmount(available, 6)}.`,
+        );
+      }
+
+      const symbol = isToken ? (await getTokenInfo(prompt.mint!)).symbol : 'SOL';
+
+      const id = intents.rememberWithdrawal({
+        userId: ctx.user.id,
+        walletId: ctx.wallet.id,
+        destination: prompt.destination,
+        ...(prompt.mint ? { mint: prompt.mint } : {}),
+        amount,
+        ...(isToken && available > 0 ? { percent: (amount / available) * 100 } : {}),
+        symbol,
+      });
+
+      await ctx.reply(
+        views.withdrawPreview({
+          amount,
+          symbol,
+          destination: prompt.destination,
+          isSweep: !isToken && amount >= available,
+        }),
+        { parse_mode: 'HTML', ...keyboards.confirmWithdraw(id) },
       );
       return;
     }

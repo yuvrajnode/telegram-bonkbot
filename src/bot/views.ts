@@ -269,5 +269,37 @@ export const settingsScreen = (settings: {
     `A higher priority fee gets your transaction into a block sooner when the network is busy. You are paying ${settings.priority_fee_lamports.toLocaleString()} lamports per swap.`,
   ].join('\n');
 
+export const withdrawPreview = (input: {
+  amount: number;
+  symbol: string;
+  destination: string;
+  isSweep: boolean;
+}): string =>
+  [
+    '<b>Confirm withdrawal</b>',
+    rule,
+    `Sending  <b>${formatAmount(input.amount, 6)} ${escape(input.symbol)}</b>`,
+    `To  <code>${escape(input.destination)}</code>`,
+    input.isSweep ? '\n<i>A little SOL stays behind so the wallet can still pay fees.</i>' : '',
+    '',
+    '⚠️ <b>This cannot be undone.</b> Check the address character by character — a wrong one is a permanent loss.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+export const withdrawDone = (input: {
+  amount: number;
+  symbol: string;
+  destination: string;
+  signature: string;
+}): string =>
+  [
+    '✅ <b>Sent</b>',
+    rule,
+    `${formatAmount(input.amount, 6)} ${escape(input.symbol)} → <code>${escape(shortenAddress(input.destination, 6))}</code>`,
+    '',
+    `<a href="${explorerTx(input.signature)}">View transaction</a>`,
+  ].join('\n');
+
 export const walletAddress = (wallet: Wallet): string =>
   `Deposit address for <b>${escape(wallet.label)}</b>\n\n<code>${wallet.public_key}</code>\n\n<i>${shortenAddress(wallet.public_key, 6)} — tap the address to copy.</i>`;
