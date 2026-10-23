@@ -225,6 +225,4 @@ Working, and deliberately not finished. Known gaps: no launch sniping, the
 dashboard is read-only by design, and referral earnings are booked but not
 paid out automatically. Issues and PRs welcome.
 
-## License
 
-MIT — see [LICENSE](LICENSE).
